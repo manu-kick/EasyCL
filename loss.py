@@ -313,7 +313,7 @@ def compute_centroids(text_embeddings, visual_embeddings, audio_embeddings):
     centroid_norms = torch.norm(centroids, dim=-1)
 
     norm_condition = centroid_norms >= 0.5
-    #centroid_norms = torch.where(norm_condition, centroid_norms, torch.tensor(0.0))
+    centroid_norms = torch.where(norm_condition, centroid_norms, torch.tensor(0.0))
 
     return centroid_norms
 

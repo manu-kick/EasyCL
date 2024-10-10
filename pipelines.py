@@ -52,12 +52,12 @@ def eval(test_dataloader, text_encoder, audio_encoder, vision_encoder, device,it
             audio_emb = audio_encoder(spectogram)
             vision_emb = vision_encoder(mnist_img)
 
-            #text_emb = F.normalize(text_emb,dim=-1)
+            text_emb = F.normalize(text_emb,dim=-1)
 
             #print(text_embedding)
-            #audio_emb = F.normalize(audio_emb,dim=-1)
+            audio_emb = F.normalize(audio_emb,dim=-1)
             #print(audio_embedding)
-            #vision_emb = F.normalize(vision_emb,dim=-1)
+            vision_emb = F.normalize(vision_emb,dim=-1)
             
             # Append embeddings and labels to the respective lists
             text_embeddings.append(text_emb.cpu().numpy())
@@ -174,9 +174,9 @@ def train_model_with_visualization(text_encoder, audio_encoder, vision_encoder, 
         text_embedding = text_encoder(text_input).to(device)
         audio_embedding = audio_encoder(audio_input)
         vision_embedding = vision_encoder(vision_input)
-        #text_embedding = F.normalize(text_embedding,dim=-1)
-        #audio_embedding = F.normalize(audio_embedding,dim=-1)
-        #vision_embedding = F.normalize(vision_embedding,dim=-1)
+        text_embedding = F.normalize(text_embedding,dim=-1)
+        audio_embedding = F.normalize(audio_embedding,dim=-1)
+        vision_embedding = F.normalize(vision_embedding,dim=-1)
         bs = text_embedding.size(0)
         targets = torch.linspace(0,  bs - 1, bs, dtype=int).to('cuda')
 
