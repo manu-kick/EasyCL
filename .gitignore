@@ -1,0 +1,7 @@
+*.png
+wandb
+*.zip
+Prove
+mnist_data
+__pycache__
+*.bin
