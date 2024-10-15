@@ -10,7 +10,7 @@ import librosa
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from loss import volume_computation3,volume_computation3Test,compute_centroids,compute_centroidsTest,compute_centroids_only
+from loss import volume_computation3,volume_computation3Test,compute_centroidsTest,compute_centroids_only
 from tqdm import tqdm
 import wandb
 from metrics import compute_metric_ret,compute_metric_ret2
@@ -46,7 +46,11 @@ def compute_similarity_matrix():
     # Print the similarity matrix
     print(similarity_matrix)
 
+    #IF SMOOTHNING WITH SIGMOID STYLE
     similarity_matrix= 1-  (1/(1+torch.exp(-5*similarity_matrix)))
+
+    #IF LINEAR DECADING
+    #similarity_matrix = 1 - similarity_matrix
     print(similarity_matrix)
     return similarity_matrix
 

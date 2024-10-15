@@ -9,7 +9,7 @@ import librosa
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
-from loss import volume_computation3,volume_computation3Test,compute_centroids,compute_centroidsTest,compute_centroids_only
+from loss import volume_computation3,volume_computation3Test,compute_centroidsTest,compute_centroids_only
 from tqdm import tqdm
 import wandb
 from metrics import compute_metric_ret,compute_metric_ret2
@@ -75,6 +75,9 @@ def eval(test_dataloader, text_encoder, audio_encoder, vision_encoder, device,it
     #VISUALIZE
     visualize_3d(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels) 
     if iterations>5000 and iterations<5051 :
+        visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+
+    if iterations>7999 and iterations<8051 :
         visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
 
     text_embeddings =   torch.from_numpy(text_embeddings) 
@@ -167,8 +170,12 @@ def train_model_with_visualization(text_encoder, audio_encoder, vision_encoder, 
 
         #CENTROID-VIDEO Alignment
         cv = torch.matmul(centroids, vision_embedding.permute(1,0))
+        #PROVA
+        cv = cv + similarity_matrix
         cv = cv / contra_temp
         vc = torch.matmul(vision_embedding, centroids.permute(1,0))
+        #PROVA
+        vc = vc + similarity_matrix
         vc = vc / contra_temp
         loss_cv = (
                 F.cross_entropy(cv, targets, label_smoothing=0.1)
@@ -176,8 +183,10 @@ def train_model_with_visualization(text_encoder, audio_encoder, vision_encoder, 
         ) / 2
         #CENTROID-Audio Alignment
         ca = torch.matmul(centroids, audio_embedding.permute(1,0))
+        ca = ca + similarity_matrix
         ca = ca / contra_temp
         ac = torch.matmul(audio_embedding, centroids.permute(1,0))
+        ac = ac + similarity_matrix
         ac = ac / contra_temp
         loss_ca = (
                 F.cross_entropy(ca, targets, label_smoothing=0.1)
@@ -185,8 +194,10 @@ def train_model_with_visualization(text_encoder, audio_encoder, vision_encoder, 
         ) / 2
         #Centroid-Text Alignment
         ct = torch.matmul(centroids, text_embedding.permute(1,0))
+        ct = ct + similarity_matrix
         ct = ct / contra_temp
         tc = torch.matmul(text_embedding, centroids.permute(1,0))
+        tc = tc + similarity_matrix
         tc = tc / contra_temp
         loss_ct = (
                 F.cross_entropy(ct, targets, label_smoothing=0.1)
