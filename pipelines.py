@@ -75,11 +75,11 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
 
     #VISUALIZE
     visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iterations,labels) 
-    if iterations>5000 and iterations<5051 :
-        visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    #if iterations>5000 and iterations<5051 :
+    #    visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
 
-    if iterations>7999 and iterations<8051 :
-        visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    #if iterations>7999 and iterations<8051 :
+    #    visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
 
     text_embeddings =   torch.from_numpy(text_embeddings) 
     audio_embeddings =  torch.from_numpy(audio_embeddings)

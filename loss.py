@@ -625,10 +625,15 @@ def compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, bs
 
     if cf.distribution_type == 'ce':   
         if cf.label_smoothing_centroids:
-            loss_centr = F.cross_entropy(centroids_matrix, similarity_matrix, label_smoothing=0.1)
+            if cf.similarity_matrix == 'false':
+                loss_centr = F.cross_entropy(centroids_matrix, targets, label_smoothing=0.1)
+            else:
+                loss_centr = F.cross_entropy(centroids_matrix, similarity_matrix, label_smoothing=0.1)
         else:
-            loss_centr = F.cross_entropy(centroids_matrix, similarity_matrix)#, label_smoothing=0.1)
-    
+            if cf.similarity_matrix == 'false':
+                loss_centr = F.cross_entropy(centroids_matrix, targets)
+            else:
+                loss_centr = F.cross_entropy(centroids_matrix, similarity_matrix)
     elif cf.distribution_type == 'kl':
 
         centroids_matrix = F.log_softmax(centroids_matrix, dim=0)
@@ -636,10 +641,17 @@ def compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, bs
 
     
     #CENTROID-Video Alignment
-    cv = torch.matmul(centroids, vision_embedding.permute(1,0))
-    cv = cv / contra_temp
-    vc = torch.matmul(vision_embedding, centroids.permute(1,0))
-    vc = vc / contra_temp
+    if cf.detach_centroids:
+        cv = torch.matmul(centroids.detach(), vision_embedding.permute(1,0))
+        cv = cv / contra_temp
+        vc = torch.matmul(vision_embedding, centroids.permute(1,0).detach())
+        vc = vc / contra_temp
+    else:
+        cv = torch.matmul(centroids, vision_embedding.permute(1,0))
+        cv = cv / contra_temp
+        vc = torch.matmul(vision_embedding, centroids.permute(1,0))
+        vc = vc / contra_temp
+        
     if cf.similarity_matrix == 'everywhere':
         loss_cv = (
                 F.cross_entropy(cv, similarity_matrix, label_smoothing=0.1)
@@ -652,10 +664,16 @@ def compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, bs
         ) / 2
 
     #CENTROID-Audio Alignment
-    ca = torch.matmul(centroids, audio_embedding.permute(1,0))
-    ca = ca / contra_temp
-    ac = torch.matmul(audio_embedding, centroids.permute(1,0))
-    ac = ac / contra_temp
+    if cf.detach_centroids:
+        ca = torch.matmul(centroids.detach(), audio_embedding.permute(1,0))
+        ca = ca / contra_temp
+        ac = torch.matmul(audio_embedding, centroids.permute(1,0).detach())
+        ac = ac / contra_temp
+    else:
+        ca = torch.matmul(centroids, audio_embedding.permute(1,0))
+        ca = ca / contra_temp
+        ac = torch.matmul(audio_embedding, centroids.permute(1,0))
+        ac = ac / contra_temp
 
     if cf.similarity_matrix == 'everywhere':
         loss_ca = (
@@ -670,11 +688,17 @@ def compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, bs
 
 
     #Centroid-Text Alignment
-    ct = torch.matmul(centroids, text_embedding.permute(1,0))
-    ct = ct / contra_temp
-    tc = torch.matmul(text_embedding, centroids.permute(1,0))
-    tc = tc / contra_temp
-
+    if cf.detach_centroids:
+        ct = torch.matmul(centroids.detach(), text_embedding.permute(1,0))
+        ct = ct / contra_temp
+        tc = torch.matmul(text_embedding, centroids.permute(1,0).detach())
+        tc = tc / contra_temp
+    else:
+        ct = torch.matmul(centroids, text_embedding.permute(1,0))
+        ct = ct / contra_temp
+        tc = torch.matmul(text_embedding, centroids.permute(1,0))
+        tc = tc / contra_temp
+        
     if cf.similarity_matrix == 'everywhere':
         loss_ct = (
                 F.cross_entropy(ct, similarity_matrix, label_smoothing=0.1)

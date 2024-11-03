@@ -13,9 +13,10 @@ class Config():
         self.eval_type=    'centroids'    #centroids or volume or area
         self.normalization =  True
         self.distribution_type=    'ce'           #ce or kl or wass
-        self.similarity_matrix =     'false'           #false or only_centroids or everywhere
+        self.similarity_matrix =     'everywhere'           #false or only_centroids or everywhere
         self.similarity_type = 'normal' #'2clusters' # 'normal' 'ordered_numbers
         
+        self.detach_centroids = True
         self.normalization_centroids = False
         self.softmax_similarity = False
         self.diag_centroid_normalized = False
@@ -24,7 +25,7 @@ class Config():
         self.centroid_scale = 4
 
         self.wandb = True
-        self.run =  f'RUN_{self.loss_type}_{self.distribution_type}_{self.similarity_matrix}_{self.similarity_type}'
+        self.run =  f'RUN_detach_{self.loss_type}_{self.distribution_type}_{self.similarity_matrix}_{self.similarity_type}'
 
 
         self.contra_temp_init = 0.07

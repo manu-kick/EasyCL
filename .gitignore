@@ -5,3 +5,4 @@ Prove
 mnist_data
 __pycache__
 *.bin
+*.pyc
