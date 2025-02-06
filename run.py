@@ -2,27 +2,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-import torchaudio
-from gensim.models import Word2Vec
-from torchvision import models
-import librosa
 import numpy as np
 from loss import * 
 from models import TextEncoder,AudioEncoder,VisionEncoder
 from pipelines import *
 import torch
-from torch.utils.data import Dataset, DataLoader, Sampler
-from torchvision import datasets, transforms
-import torchaudio
+from torch.utils.data import  DataLoader
+from torchvision import transforms
 import os
 import numpy as np
-from torchaudio.transforms import Resample
-import pandas as pd
-from tqdm.auto import tqdm
-import wave
 import random
-from torch import nn,Tensor,optim
-from sklearn.model_selection import GroupShuffleSplit
+from torch import nn
 from dataloader import *
 from torchaudio import transforms as T
 import wandb
@@ -45,10 +35,11 @@ seed_everything(cf.seed)
 
 if cf.wandb == True:
     wandb.init(
+            settings=wandb.Settings(init_timeout=120),
             # set the wandb project where this run will be logged
-            project ="MNIST_ContrastiveLearning",
-            name = cf.run,
-            id= cf.run,
+            project ='prova', #"MNIST_ContrastiveLearning",
+            #name = cf.run,
+            #id= cf.run,
             # track hyperparameters and run metadata
             config= cf.log_config()
     )
@@ -71,6 +62,9 @@ optimizer = torch.optim.Adam(list(text_encoder.parameters()) +
                               list(audio_encoder.parameters()) + 
                               list(vision_encoder.parameters()) + [contra_temp], lr=cf.lr)
 
+# Create learning rate scheduler
+#scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.1)
+
 
 # Define the dataset roots
 # MNIST will be downloaded with create_dataset function
@@ -81,14 +75,22 @@ audio_mnist_root = './mnist_data/audio-MNIST/data'
 # Instantiate your dataset
 mnist_transform = transforms.Compose([ transforms.ToTensor()])
 audio_transform =  T.MelSpectrogram(sample_rate=cf.sample_rate,n_fft=cf.n_fft,n_mels=cf.n_mels) #Resample( new_freq=16000)  # Example transform: resample audio
-metadata = get_metadata(audio_mnist_root)
-mnist_audio_dataset_train, mnist_audio_dataset_test = create_datasets( metadata=metadata,
-                                                                      test_size=0.0002,    
-                                                                      mnist_root=mnist_root,
-                                                                      audio_mnist_root=audio_mnist_root,
-                                                                      mnist_transform=mnist_transform,
-                                                                      audio_transform=audio_transform) 
 
+#If exists load the dataset
+if os.path.exists('mnist_audio_dataset_train.pt'):
+    mnist_audio_dataset_train = torch.load('mnist_audio_dataset_train.pt')
+    mnist_audio_dataset_test = torch.load('mnist_audio_dataset_test.pt')
+else:
+    metadata = get_metadata(audio_mnist_root)
+    mnist_audio_dataset_train, mnist_audio_dataset_test = create_datasets( metadata=metadata,
+                                                                          test_size=0.0002,    
+                                                                          mnist_root=mnist_root,
+                                                                          audio_mnist_root=audio_mnist_root,
+                                                                          mnist_transform=mnist_transform,
+                                                                          audio_transform=audio_transform) 
+    # save the dataset to a file
+    torch.save(mnist_audio_dataset_train, 'mnist_audio_dataset_train.pt')
+    torch.save(mnist_audio_dataset_test, 'mnist_audio_dataset_test.pt')
 
 
 # Create a DataLoader to load data in batches

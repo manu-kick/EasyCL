@@ -1,23 +1,13 @@
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import torchaudio
-from gensim.models import Word2Vec
-from torchvision import models
-import librosa
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from loss import volume_computation3,volume_computation3Test,compute_centroidsTest,compute_centroids_only
 from tqdm import tqdm
 import wandb
-from metrics import compute_metric_ret,compute_metric_ret2
 import plotly.graph_objects as go
 import wandb
-from PIL import Image
-
+import os
 
 # THIS FUNCTION COMPUTE THE SIMILARITY AMONG DATA.
 # IN THE MNIST SCENARIO WE CAN IMPOSE OUR OWN SEMANTIC
@@ -69,45 +59,64 @@ def compute_similarity_matrix(similarity_type):
         group_1 = [0, 1, 2, 3, 4]  # Group 1 (0-4)
         group_2 = [5, 6, 7, 8, 9]  # Group 2 (5-9)
 
+
+        # Set similarity for eyes to 1
+        similarity_matrix[0, 1] = 1.0  # Assuming 0 and 1 represent eyes
+        similarity_matrix[1, 0] = 1.0  # Ensure symmetry
         # Fill the matrix with similarity values
+        # Manually define the entire similarity matrix
+        similarity_matrix = np.array([
+            [1.0,   0.6,  0.2,  0.2,  0.6, -0.6, -0.7, -0.9, -0.7, -0.6],
+            [0.6,   1.0,  0.6,  0.2,  0.2, -0.6, -0.6, -0.7, -0.9, -0.7],
+            [0.2,   0.6,  1.0,  0.6,  0.2, -0.7, -0.6, -0.6, -0.7, -0.9],
+            [0.2,   0.2,  0.6,  1.0,  0.6, -0.9, -0.7, -0.6, -0.6, -0.7],
+            [0.6,   0.2,  0.2,  0.6,  1.0, -0.7, -0.9, -0.7, -0.6, -0.6],
+            [-0.4, -0.6, -0.8, -0.6, -0.4,  1.0,  0.6,  0.2,  0.2,  0.6],
+            [-0.6, -0.8, -0.6, -0.4, -0.4,  0.6,  1.0,  0.6,  0.2,  0.2],
+            [-0.8, -0.6, -0.4, -0.4, -0.6,  0.2,  0.6,  1.0,  0.6,  0.2],
+            [-0.6, -0.4, -0.4, -0.6, -0.8,  0.2,  0.2,  0.6,  1.0,  0.6],
+            [-0.4, -0.4, -0.6, -0.8, -0.6,  0.6,  0.2,  0.2,  0.6,  1.0]
+        ])
         for i in range(n_items):
             for j in range(i, n_items):
-                if i == j:
-                    similarity_matrix[i, j] = 1.0  # Perfect similarity with itself
-                elif (i in group_1 and j in group_1) or (i in group_2 and j in group_2):
-                    similarity_matrix[i, j] = 0.2  # High similarity within the same group
-                else:
-                    similarity_matrix[i, j] = 0  # Low similarity between groups
+                similarity_matrix[j, i] = similarity_matrix[i, j]
 
-                similarity_matrix[j, i] = similarity_matrix[i, j]  # Ensure symmetry
+    elif similarity_type == "ordered_numbers_circle":
+        similarity_matrix = np.zeros((n_items, n_items))
+
+        
+        similarity_matrix[0] = [1, 0.6, 0.2, -0.2, -0.6, -1, -0.6, -0.2, 0.2, 0.6]
+        similarity_matrix[1] = [0.6, 1, 0.6, 0.2, -0.2, -0.6, -1, -0.6, -0.2, 0.2]
+        similarity_matrix[2] = [0.2, 0.6, 1, 0.6, 0.2, -0.2, -0.6, -1, -0.6, -0.2]
+        similarity_matrix[3] = [-0.2, 0.2, 0.6, 1, 0.6, 0.2, -0.2, -0.6, -1, -0.6]
+        similarity_matrix[4] = [-0.6, -0.2, 0.2, 0.6, 1, 0.6, 0.2, -0.2, -0.6, -1]
+        similarity_matrix[5] = [-1, -0.6, -0.2, 0.2, 0.6, 1, 0.6, 0.2, -0.2, -0.6]
+        similarity_matrix[6] = [-0.6, -1, -0.6, -0.2, 0.2, 0.6, 1, 0.6, 0.2, -0.2]
+        similarity_matrix[7] = [-0.2, -0.6, -1, -0.6, -0.2, 0.2, 0.6, 1, 0.6, 0.2]
+        similarity_matrix[8] = [0.2, -0.2, -0.6, -1, -0.6, -0.2, 0.2, 0.6, 1, 0.6]
+        similarity_matrix[9] = [0.6, 0.2, -0.2, -0.6, -1, -0.6, -0.2, 0.2, 0.6, 1]
 
     elif similarity_type == "ordered_numbers":
         similarity_matrix = np.zeros((n_items, n_items))
 
-        # Fill the matrix with similarity values iteratively
-        for i in range(n_items):
-            similarity_matrix[i, i] = 1.0  # Perfect similarity with itself
-
-            # For items further away from item i (distance 1 to n_items - 1)
-            for dist in range(1, n_items):
-                # The target item index
-                j = i + dist
-                if j < n_items:
-                    # The similarity value decreases as distance increases
-                    similarity_value = 1.0 - dist * 0.2
-                    similarity_matrix[i, j] = similarity_value
-                    similarity_matrix[j, i] = similarity_value  # Ensure symmetry
+        similarity_matrix[0] = [1, 0.8, 0.6, 0.4, 0.2, 0.0, -0.2, -0.4, -0.6, -1.0]
+        similarity_matrix[1] = [0.8, 1, 0.8, 0.6, 0.4, 0.2, 0.0, -0.2, -0.4, -0.6]
+        similarity_matrix[2] = [0.6, 0.8, 1, 0.8, 0.6, 0.4, 0.2, 0.0, -0.2, -0.4]
+        similarity_matrix[3] = [0.4, 0.6, 0.8, 1, 0.8, 0.6, 0.4, 0.2, 0.0, -0.2]
+        similarity_matrix[4] = [0.2, 0.4, 0.6, 0.8, 1, 0.8, 0.6, 0.4, 0.2, 0.0]
+        similarity_matrix[5] = [0.0, 0.2, 0.4, 0.6, 0.8, 1, 0.8, 0.6, 0.4, 0.2]
+        similarity_matrix[6] = [-0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1, 0.8, 0.6, 0.4]
+        similarity_matrix[7] = [-0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1, 0.8, 0.6]
+        similarity_matrix[8] = [-0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1, 0.8]
+        similarity_matrix[9] = [-1.0, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4, 0.6, 0.8, 1]
 
     elif similarity_type == 'normal':
         similarity_matrix = np.zeros((n_items, n_items))
 
-        # Fill the matrix with similarity values iteratively
         for i in range(n_items):
             similarity_matrix[i, i] = 1.0  # Perfect similarity with itself
 
             
-
-
     # Convert to torch tensor and move to GPU
     similarity_matrix = torch.tensor(similarity_matrix).to('cuda')
 
@@ -124,6 +133,50 @@ def compute_similarity_matrix(similarity_type):
 
     return similarity_matrix
 
+def visualize_2d(cf, text_embeddings,audio_embeddings,vision_embeddings,iterations,labels):    
+    
+    # Create a 3D plot
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set(xlim=(-1, +1), ylim=(-1, +1))
+    # Assign different markers and colors based on the labels
+    unique_labels = np.unique(labels)
+    
+    # Colors for each label
+    colors = plt.cm.get_cmap("tab10", len(unique_labels))
+    
+    # Plot text embeddings (stars)
+    for i, label in enumerate(unique_labels):
+        text_indices = np.where(np.array(labels) == label)[0]
+        ax.scatter(text_embeddings[text_indices, 0], text_embeddings[text_indices, 1], text_embeddings[text_indices, 2],
+                     marker='*', color=colors(label), s=100) #label=f'Text - {label}',
+
+    # Plot audio embeddings (triangles)
+    for i, label in enumerate(unique_labels):
+        audio_indices = np.where(np.array(labels) == label)[0]
+        ax.scatter(audio_embeddings[audio_indices, 0], audio_embeddings[audio_indices, 1], audio_embeddings[audio_indices, 2],
+                     marker='^', color=colors(label), s=100) #label=f'Audio - {label}',
+
+    # Plot vision embeddings (squares)
+    for i, label in enumerate(unique_labels):
+        vision_indices = np.where(np.array(labels) == label)[0]
+        ax.scatter(vision_embeddings[vision_indices, 0], vision_embeddings[vision_indices, 1], vision_embeddings[vision_indices, 2],
+                     marker='s', color=colors(label), s=100) #label=f'Vision - {label}',
+
+    # Labels and titl
+    ax.set(xlim=(-1, +1), ylim=(-1, +1), zlim= (-1, +1))
+    ax.set_xlabel('Dimension 1')
+    ax.set_ylabel('Dimension 2')
+    ax.set_zlabel('Dimension 3')
+    #ax.set_title('3D Latent Space Visualization of Text, Audio, and Vision Embeddings')
+    
+    # Add legend
+    ax.legend()
+    plt.savefig(f'latent space at {iterations}.png',dpi=300)
+
+    if iterations%100 == 0 and cf.wandb :
+        wandb.log({"example": wandb.Image(f'latent space at {iterations}.png')})
+    
 
 def visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iterations,labels):    
     
@@ -141,32 +194,35 @@ def visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iteratio
     for i, label in enumerate(unique_labels):
         text_indices = np.where(np.array(labels) == label)[0]
         ax.scatter(text_embeddings[text_indices, 0], text_embeddings[text_indices, 1], text_embeddings[text_indices, 2],
-                    label=f'Text - {label}', marker='*', color=colors(label), s=100)
+                     marker='*', color=colors(label), s=100, label=f'Text - {label}')
 
     # Plot audio embeddings (triangles)
     for i, label in enumerate(unique_labels):
         audio_indices = np.where(np.array(labels) == label)[0]
         ax.scatter(audio_embeddings[audio_indices, 0], audio_embeddings[audio_indices, 1], audio_embeddings[audio_indices, 2],
-                    label=f'Audio - {label}', marker='^', color=colors(label), s=100)
+                     marker='^', color=colors(label), s=100, label=f'Audio - {label}')
 
     # Plot vision embeddings (squares)
     for i, label in enumerate(unique_labels):
         vision_indices = np.where(np.array(labels) == label)[0]
         ax.scatter(vision_embeddings[vision_indices, 0], vision_embeddings[vision_indices, 1], vision_embeddings[vision_indices, 2],
-                    label=f'Vision - {label}', marker='s', color=colors(label), s=100)
+                     marker='s', color=colors(label), s=100, label=f'Vision - {label}')
 
     # Labels and titl
     ax.set(xlim=(-1, +1), ylim=(-1, +1), zlim= (-1, +1))
     ax.set_xlabel('Dimension 1')
     ax.set_ylabel('Dimension 2')
     ax.set_zlabel('Dimension 3')
-    ax.set_title('3D Latent Space Visualization of Text, Audio, and Vision Embeddings')
+    #ax.set_title('3D Latent Space Visualization of Text, Audio, and Vision Embeddings')
     
     # Add legend
     ax.legend()
-    plt.savefig(f'latent space at {iterations}.png')
+    path = cf.plot_path
+    os.makedirs(path,exist_ok=True)
+    save_path = os.path.join(path,f'latent space at {iterations}.png')
+    plt.savefig(save_path,dpi=300)
 
-    if iterations%1000 == 0 and cf.wandb :
+    if iterations%100 == 0 and cf.wandb :
         wandb.log({"example": wandb.Image(f'latent space at {iterations}.png')})
     
 

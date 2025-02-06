@@ -1,21 +1,12 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import torchaudio
-from gensim.models import Word2Vec
-from torchvision import models
-import librosa
 import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from loss import volume_computation3,volume_computation3Test,compute_centroidsTest,compute_centroids_only
-from loss import compute_loss_anchor,compute_loss_centroids,compute_loss_volume,area_computation,compute_loss_area
+from loss import volume_computation3,compute_centroidsTest
+from loss import compute_loss_anchor,compute_loss_centroids,compute_loss_volume,area_computation,compute_loss_area,compute_loss_anchor_lunif_lalign
 from tqdm import tqdm
 import wandb
 from metrics import compute_metric_ret,compute_metric_ret2
-import plotly.graph_objects as go
-from utils import visualize_3d,visualize_3d_interactively,compute_similarity_matrix
+from utils import visualize_3d,compute_similarity_matrix,visualize_3d_interactively
 
 
 
@@ -55,11 +46,9 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
             audio_emb = audio_encoder(spectogram)
             vision_emb = vision_encoder(mnist_img)
 
+            # Normalize embeddings
             text_emb = F.normalize(text_emb,dim=-1)
-
-            #print(text_embedding)
             audio_emb = F.normalize(audio_emb,dim=-1)
-            #print(audio_embedding)
             vision_emb = F.normalize(vision_emb,dim=-1)
             
             # Append embeddings and labels to the respective lists
@@ -75,11 +64,11 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
 
     #VISUALIZE
     visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iterations,labels) 
-    #if iterations>5000 and iterations<5051 :
-    #    visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    if iterations>5000 and iterations<5051 :
+        visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
 
-    #if iterations>7999 and iterations<8051 :
-    #    visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    if iterations>8000 and iterations<8051 :
+        visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
 
     text_embeddings =   torch.from_numpy(text_embeddings) 
     audio_embeddings =  torch.from_numpy(audio_embeddings)
@@ -108,11 +97,24 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
     elif cf.eval_type == 'centroids':
         centroids_norm,centroids = compute_centroidsTest(text_embeddings, audio_embeddings, vision_embeddings)
         log = compute_metric_ret(centroids_norm.T, class_ids, labels, direction='forward')
-
     elif cf.eval_type == 'area':
         area = area_computation(text_embeddings, audio_embeddings, vision_embeddings)
         log = compute_metric_ret2(area.T, class_ids, labels, direction='forward')
 
+    elif cf.eval_type == 'tvta':
+        sim_tv = text_embeddings @ vision_embeddings.T
+        sim_ta = text_embeddings @ audio_embeddings.T
+
+        log1 = compute_metric_ret2(sim_tv, class_ids, labels, direction='forward')
+        log2 = compute_metric_ret2(sim_ta, class_ids, labels, direction='forward')
+        log = {}
+        log['forward_r1'] = (log1['forward_r1']+log2['forward_r1'])/2
+        log['forward_ravg'] = (log1['forward_ravg']+log2['forward_ravg'])/2
+
+    elif cf.eval_type == 'symile':
+        query = vision_embeddings * audio_embeddings
+        sim = text_embeddings @ query.T
+        log = compute_metric_ret2(sim, class_ids, labels, direction='forward')
 
     log = {k.replace('forward','ZS CLASSIFICATION'): v for k,v in log.items()}
     print(log)
@@ -122,11 +124,15 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
 
 # Updated train model with latent space visualization
 def train_model_with_visualization(cf,text_encoder, audio_encoder, vision_encoder, dataloader_train, dataloader_test, optimizer, device, num_iterations,contra_temp):
+    if not cf.contra_temp_learnable:
+        contra_temp = cf.contra_temp_init
+
     similarity_matrix=None
     if not cf.similarity_matrix == 'false':
         similarity_matrix = compute_similarity_matrix(cf.similarity_type)
     if cf.softmax_similarity:
-        similarity_matrix = F.softmax(similarity_matrix,dim=0)
+        similarity_matrix = similarity_matrix / cf.similarity_temperature
+        similarity_matrix = F.softmax(similarity_matrix,dim=-1)
 
     text_encoder.train()
     audio_encoder.train()
@@ -173,14 +179,17 @@ def train_model_with_visualization(cf,text_encoder, audio_encoder, vision_encode
             loss = compute_loss_anchor(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
 
         elif cf.loss_type ==  'centroids':  
-            loss = compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
+            loss = compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, batch_idx, targets, cf, similarity_matrix,contra_temp)
 
         elif cf.loss_type == 'volume':
             loss = compute_loss_volume(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
 
         elif cf.loss_type == 'area':
             loss = compute_loss_area(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
-        else:
+
+        elif cf.loss_type == 'anchor_align_unif':
+            loss = compute_loss_anchor_lunif_lalign(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
+        else:    
             print("loss not implemented")
             return 0
 
