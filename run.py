@@ -18,8 +18,13 @@ from torchaudio import transforms as T
 import wandb
 from config import *
 
-cf = Config()
+import matplotlib
+matplotlib.use("Agg") # Use a non-interactive backend
 
+# set working directory to the script's directory (for python debugger vscode)
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+cf = Config()
 
 def seed_everything(seed: int):
 
@@ -37,24 +42,18 @@ if cf.wandb == True:
     wandb.init(
             settings=wandb.Settings(init_timeout=120),
             # set the wandb project where this run will be logged
-            project ='prova', #"MNIST_ContrastiveLearning",
-            #name = cf.run,
+            project ='MNIST_ContrastiveLearning', #"MNIST_ContrastiveLearning",
+            name = cf.run,
             #id= cf.run,
             # track hyperparameters and run metadata
             config= cf.log_config()
     )
 
 
-
-# Define your input dimensions and encoders
-embedding_dim = 3  # Set to 3 for 3D latent space
-output_dim = 3     # Embedding dimension of 3 for visualization (latent space)
-w2v_path = './GoogleNews-vectors-negative300.bin'
-
 #Define Encoders
-text_encoder = TextEncoder(word2vec_model_path=w2v_path,embedding_size=embedding_dim).to('cuda')
-audio_encoder = AudioEncoder( input_channels=1, output_dim=output_dim).to('cuda')
-vision_encoder = VisionEncoder(input_channels=1, output_dim=output_dim).to('cuda')
+text_encoder = TextEncoder(word2vec_model_path=cf.w2v_path,embedding_size=cf.embedding_dim).to('cuda')
+audio_encoder = AudioEncoder( input_channels=1, output_dim=cf.embedding_dim).to('cuda')
+vision_encoder = VisionEncoder(input_channels=1, output_dim=cf.embedding_dim).to('cuda')
 contra_temp = nn.Parameter(torch.tensor(cf.contra_temp_init))
 
 # Create optimizer and criterion
@@ -101,5 +100,5 @@ print(f'Train Dataloader len = {len(dataloader_train)}')
 print(f'Test Dataloader len = {len(dataloader_test)}')
 
 
-# Train and visualize the latent space
+# Train and ize the latent space
 train_model_with_visualization(cf,text_encoder, audio_encoder, vision_encoder, dataloader_train, dataloader_test,optimizer, device=cf.device, num_iterations=cf.num_iterations,contra_temp=contra_temp)
