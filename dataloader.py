@@ -41,7 +41,7 @@ def get_metadata(root : str) -> pd.DataFrame:
 
             for audio in tqdm(audios, desc=f"Processing {subfolder_path}"):
 
-                audio_path = os.path.join(subfolder_path, audio)
+                audio_path = os.path.abspath(os.path.join(subfolder_path, audio))
                 name,_ = os.path.splitext(audio)
                 label,person_id,recording_id = name.split('_')
                 
@@ -112,6 +112,7 @@ class MNIST_AudioDataset(Dataset):
         list_audios_with_label=list(list_audios_with_label)
 
         path=random.choice(list_audios_with_label)
+        path = os.path.normpath(path)
         # Get Audio-MNIST audio for the same label (assuming audio corresponds to the same label)
         waveform, sample_rate = torchaudio.load(path,normalize=True,channels_first=True)
         waveform = self._adjust_audio_length(waveform)
@@ -160,16 +161,28 @@ def create_datasets(
 
 
 class UniqueLabelSampler(Sampler):
-    def __init__(self, dataset, batch_size):
+    # def __init__(self, dataset, batch_size):
 
+    #     self.dataset = dataset
+    #     self.batch_size = batch_size
+
+    #     # Extract the labels (digits) from the dataset
+    #     self.labels = np.array([dataset[i][3] for i in range(len(dataset))])  # dataset[i][1] is the label
+        
+    #     # Create a dictionary that maps each label (digit) to its indices in the dataset
+    #     self.label_to_indices = {label: np.where(self.labels == label)[0] for label in np.unique(self.labels)}
+
+    def __init__(self, dataset, batch_size):
         self.dataset = dataset
         self.batch_size = batch_size
 
-        # Extract the labels (digits) from the dataset
-        self.labels = np.array([dataset[i][3] for i in range(len(dataset))])  # dataset[i][1] is the label
-        
-        # Create a dictionary that maps each label (digit) to its indices in the dataset
-        self.label_to_indices = {label: np.where(self.labels == label)[0] for label in np.unique(self.labels)}
+        # MNIST labels without triggering __getitem__()
+        self.labels = dataset.mnist_data.targets.cpu().numpy()
+
+        self.label_to_indices = {
+            label: np.where(self.labels == label)[0]
+            for label in np.unique(self.labels)
+        }
 
     def __iter__(self):
         """

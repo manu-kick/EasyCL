@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import wandb
 import plotly.graph_objects as go
-import wandb
 import os
 
 # THIS FUNCTION COMPUTE THE SIMILARITY AMONG DATA.
@@ -179,7 +178,6 @@ def visualize_2d(cf, text_embeddings,audio_embeddings,vision_embeddings,iteratio
     
 
 def visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iterations,labels):    
-    
     # Create a 3D plot
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
@@ -219,11 +217,13 @@ def visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iteratio
     ax.legend()
     path = cf.plot_path
     os.makedirs(path,exist_ok=True)
+    path = os.path.join(path,'latent_space_visualizations')
+    os.makedirs(path,exist_ok=True)
     save_path = os.path.join(path,f'latent space at {iterations}.png')
     plt.savefig(save_path,dpi=300)
 
     if iterations%100 == 0 and cf.wandb :
-        wandb.log({"example": wandb.Image(f'latent space at {iterations}.png')})
+        wandb.log({"latent_space": wandb.Image(save_path)})
     
 
 
@@ -311,3 +311,5 @@ def visualize_3d_interactively(text_embeddings, audio_embeddings, vision_embeddi
 
     # Optionally, save the plot to a static file
     fig.write_image(f'latent_space_at_{iterations}.png')
+
+

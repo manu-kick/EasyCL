@@ -12,6 +12,9 @@ from torch import nn,Tensor,optim
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 import nltk
+import os
+from gensim.models import KeyedVectors
+
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('punkt_tab')
@@ -28,7 +31,22 @@ class TextEncoder(nn.Module):
         """
         super(TextEncoder, self).__init__()
         # Load pre-trained Word2Vec model
-        self.word2vec = gensim.models.KeyedVectors.load_word2vec_format(word2vec_model_path, binary=True)
+        kv_path = "./word2vec.kv"
+
+        if os.path.exists(kv_path):
+            # Fast: memory-mapped load
+            self.word2vec = KeyedVectors.load(kv_path, mmap='r')
+        else:
+            # Slow: only happens once
+            self.word2vec = KeyedVectors.load_word2vec_format(
+                word2vec_model_path,
+                binary=True
+            )
+            self.word2vec.save(kv_path)
+            
+        # if "word2vec.kv" file exists, use the following line instead:
+        # self.word2vec = Word2Vec.load(word2vec_model_path, , mmap='r')
+        
         self.embedding_size = embedding_size
         
         # We can add a linear layer to project the sentence embedding to the desired size.

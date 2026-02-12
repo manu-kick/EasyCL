@@ -7,9 +7,11 @@ from tqdm import tqdm
 import wandb
 from metrics import compute_metric_ret,compute_metric_ret2
 from utils import visualize_3d,compute_similarity_matrix,visualize_3d_interactively
-
-
-
+from analysis.gap_mean_differences import  gap_mean_differences
+from analysis.gap_embedding_dim_pairs import gap_embedding_dim_pairs
+from analysis.fisher_cumulative_expl_var import fisher_and_cumulative_explained_variance
+from analysis.intrinsic_dimensions import intrinsic_dimension_mle
+from analysis.modality_gap import compute_gap
 
 
 def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, device,iterations):
@@ -62,8 +64,15 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
     audio_embeddings = np.concatenate(audio_embeddings, axis=0)
     vision_embeddings = np.concatenate(vision_embeddings, axis=0)   
 
-    #VISUALIZE
+    # ---------- RUN ANALYSIS AND VISUALIZATION ----------
     visualize_3d(cf, text_embeddings,audio_embeddings,vision_embeddings,iterations,labels) 
+    gap_mean_differences(cf,text_embeddings,audio_embeddings,vision_embeddings,iterations,labels) 
+    gap_embedding_dim_pairs(cf,text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    fisher_and_cumulative_explained_variance(cf,text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    intrinsic_dimension_mle(cf,text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    for i in ['L2M','RMG','L2I']:
+        compute_gap(cf,i,text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
+    
     if iterations>5000 and iterations<5051 :
         visualize_3d_interactively(text_embeddings,audio_embeddings,vision_embeddings,iterations,labels)
 
@@ -121,7 +130,28 @@ def eval(cf, test_dataloader, text_encoder, audio_encoder, vision_encoder, devic
     if cf.wandb:
         wandb.log(log)
 
+def get_loss(loss_type, text_embedding, audio_embedding, vision_embedding, batch_idx, bs, targets, cf, similarity_matrix,contra_temp):
+    if loss_type ==  'anchor':                     #anchor or volume or centroids
+        loss = compute_loss_anchor(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
 
+    elif loss_type ==  'centroids':  
+        loss = compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, batch_idx, targets, cf, similarity_matrix,contra_temp)
+
+    elif loss_type == 'volume':
+        loss = compute_loss_volume(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
+
+    elif loss_type == 'area':
+        loss = compute_loss_area(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
+
+    elif loss_type == 'anchor_align_unif':
+        loss = compute_loss_anchor_lunif_lalign(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
+    else:    
+        print("loss not implemented")
+        return 0
+    
+    return loss
+    
+    
 # Updated train model with latent space visualization
 def train_model_with_visualization(cf,text_encoder, audio_encoder, vision_encoder, dataloader_train, dataloader_test, optimizer, device, num_iterations,contra_temp):
     if not cf.contra_temp_learnable:
@@ -171,29 +201,9 @@ def train_model_with_visualization(cf,text_encoder, audio_encoder, vision_encode
         vision_embedding = vision_embedding[np.argsort(label)]  # Sort embeddings according to sorted indices
 
         bs = text_embedding.size(0)
-
         targets = torch.linspace(0,  bs - 1, bs, dtype=int).to('cuda')
-
-
-        if cf.loss_type ==  'anchor':                     #anchor or volume or centroids
-            loss = compute_loss_anchor(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
-
-        elif cf.loss_type ==  'centroids':  
-            loss = compute_loss_centroids(text_embedding, audio_embedding, vision_embedding, batch_idx, targets, cf, similarity_matrix,contra_temp)
-
-        elif cf.loss_type == 'volume':
-            loss = compute_loss_volume(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
-
-        elif cf.loss_type == 'area':
-            loss = compute_loss_area(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
-
-        elif cf.loss_type == 'anchor_align_unif':
-            loss = compute_loss_anchor_lunif_lalign(text_embedding, audio_embedding, vision_embedding, bs, targets, cf, similarity_matrix,contra_temp)
-        else:    
-            print("loss not implemented")
-            return 0
-
-
+        loss = get_loss(cf.loss_type, text_embedding, audio_embedding, vision_embedding, batch_idx, bs, targets, cf, similarity_matrix,contra_temp)
+        
         # Log training loss to W&B
         if cf.wandb:
             wandb.log({
@@ -213,6 +223,11 @@ def train_model_with_visualization(cf,text_encoder, audio_encoder, vision_encode
         with torch.no_grad():
             if (iteration % 50)==0:
                 eval(cf, dataloader_test, text_encoder, audio_encoder, vision_encoder, device,iteration) 
+                
+                #if the temperature is learnable plot on wandb the current value
+                if cf.contra_temp_learnable and cf.wandb:
+                    wandb.log({"contra_temp": contra_temp.item()})
+                    
                 text_encoder.train()
                 audio_encoder.train()
                 vision_encoder.train()

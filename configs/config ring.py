@@ -10,7 +10,7 @@ class Config():
         self.anchor_selection = 'text' #'visual' 'audio'  If loss_type = anchor you can choose the anchor type 
         
         self.lr = 1e-4
-        self.eval_type=    'centroids'    #centroids or volume or area
+        self.eval_type=    'tvta'    #centroids or volume or area
         self.normalization =  True
         self.distribution_type=    'ce'           #ce or kl or wd
         self.similarity_matrix =     'everywhere'           #false or only_centroids or everywhere
